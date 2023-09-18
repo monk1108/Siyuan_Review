@@ -2,19 +2,18 @@ server:
   port: 8081
 spring:
   application:
-    name: hmdp
+    name: Siyuan
   datasource:
     driver-class-name: com.mysql.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/hmdp?useSSL=false&serverTimezone=UTC
     username: root
-    password: 123
+    password: 794Bilibili
   redis:
-    host: 192.168.150.101
+    host: 172.24.215.254
     port: 6379
-    password: 123321
     lettuce:
       pool:
-        max-active: 10
+        max-active: 100
         max-idle: 10
         min-idle: 1
         time-between-eviction-runs: 10s
