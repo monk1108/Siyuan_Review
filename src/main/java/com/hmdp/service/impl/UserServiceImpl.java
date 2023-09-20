@@ -47,79 +47,80 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     public Result sendCode(String phone, HttpSession session) {
-        // 1.校验手机号
+        // 1. check whether the phone number is correct
         if (RegexUtils.isPhoneInvalid(phone)) {
-            // 2.如果不符合，返回错误信息
+            // 2. if not
             return Result.fail("手机号格式错误！");
         }
-        // 3.符合，生成验证码
+        // 3. if true, send verification code
         String code = RandomUtil.randomNumbers(6);
 
-        // 4.保存验证码到 session
+        // 4. save code to redis
         stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY + phone, code, LOGIN_CODE_TTL, TimeUnit.MINUTES);
 
         // 5.发送验证码
-        log.debug("发送短信验证码成功，验证码：{}", code);
+        log.debug("Successfully sent verification code, code：{}", code);
         // 返回ok
         return Result.ok();
     }
 
     @Override
     public Result login(LoginFormDTO loginForm, HttpSession session) {
-        // 1.校验手机号
+        // 1. check whether phone number is correct
         String phone = loginForm.getPhone();
         if (RegexUtils.isPhoneInvalid(phone)) {
-            // 2.如果不符合，返回错误信息
+            // 2. if not
             return Result.fail("手机号格式错误！");
         }
-        // 3.从redis获取验证码并校验
+        // 3. get code from redis and see whether they match
         String cacheCode = stringRedisTemplate.opsForValue().get(LOGIN_CODE_KEY + phone);
         String code = loginForm.getCode();
         if (cacheCode == null || !cacheCode.equals(code)) {
-            // 不一致，报错
+            // not same
             return Result.fail("验证码错误");
         }
 
-        // 4.一致，根据手机号查询用户 select * from tb_user where phone = ?
+        // 4. search user based on phone number  select * from tb_user where phone = ?
+//        query(): provided by myBatisPlus, implementing addition, deletion, modification and query of a single table
         User user = query().eq("phone", phone).one();
 
-        // 5.判断用户是否存在
+        // 5. see whether the user exists
         if (user == null) {
-            // 6.不存在，创建新用户并保存
+            // 6. if not, create a new user and save to redis
             user = createUserWithPhone(phone);
         }
 
-        // 7.保存用户信息到 redis中
-        // 7.1.随机生成token，作为登录令牌
+        // 7. save user info to redis
+        // 7.1. randomly generate access token
         String token = UUID.randomUUID().toString(true);
-        // 7.2.将User对象转为HashMap存储
+        // 7.2 use HashMap to save user object
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         Map<String, Object> userMap = BeanUtil.beanToMap(userDTO, new HashMap<>(),
                 CopyOptions.create()
                         .setIgnoreNullValue(true)
                         .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString()));
-        // 7.3.存储
+        // 7.3 save
         String tokenKey = LOGIN_USER_KEY + token;
         stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
-        // 7.4.设置token有效期
+        // 7.4. set the validity period of the token
         stringRedisTemplate.expire(tokenKey, LOGIN_USER_TTL, TimeUnit.MINUTES);
 
-        // 8.返回token
+        // 8. return token
         return Result.ok(token);
     }
 
     @Override
     public Result sign() {
-        // 1.获取当前登录用户
+        // 1. get current user
         Long userId = UserHolder.getUser().getId();
-        // 2.获取日期
+        // 2. get current date
         LocalDateTime now = LocalDateTime.now();
-        // 3.拼接key
+        // 3. concatenate key
         String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         String key = USER_SIGN_KEY + userId + keySuffix;
-        // 4.获取今天是本月的第几天
+        // 4. get dayOfMonth
         int dayOfMonth = now.getDayOfMonth();
-        // 5.写入Redis SETBIT key offset 1
+        // 5. write into Redis SETBIT key offset 1
         stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
         return Result.ok();
     }
