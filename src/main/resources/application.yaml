@@ -9,7 +9,7 @@ spring:
     username: root
     password: 794Bilibili
   redis:
-    host: 172.24.219.37
+    host: 172.30.16.2
     port: 6379
     lettuce:
       pool:

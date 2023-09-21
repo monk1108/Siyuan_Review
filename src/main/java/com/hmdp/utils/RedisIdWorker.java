@@ -25,12 +25,12 @@ public class RedisIdWorker {
     }
 
     public long nextId(String keyPrefix) {
-        // 1.生成时间戳
+        // 1. Generate timestamp
         LocalDateTime now = LocalDateTime.now();
         long nowSecond = now.toEpochSecond(ZoneOffset.UTC);
         long timestamp = nowSecond - BEGIN_TIMESTAMP;
 
-        // 2.生成序列号
+        // 2. generate serial number
         // 2.1.获取当前日期，精确到天
         String date = now.format(DateTimeFormatter.ofPattern("yyyy:MM:dd"));
         // 2.2.自增长

@@ -33,139 +33,135 @@ public class CacheClient {
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value), time, unit);
     }
 
+//      set data with logical expiration
     public void setWithLogicalExpire(String key, Object value, Long time, TimeUnit unit) {
-        // 设置逻辑过期
         RedisData redisData = new RedisData();
         redisData.setData(value);
         redisData.setExpireTime(LocalDateTime.now().plusSeconds(unit.toSeconds(time)));
-        // 写入Redis
+        // write into redis
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData));
     }
 
+//    cache passthrough
+//    can return any type, set generics R
     public <R,ID> R queryWithPassThrough(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit){
         String key = keyPrefix + id;
-        // 1.从redis查询商铺缓存
+        // 1. search shop cache from redis
         String json = stringRedisTemplate.opsForValue().get(key);
-        // 2.判断是否存在
+        // 2. see whether the cache exists
         if (StrUtil.isNotBlank(json)) {
-            // 3.存在，直接返回
+            // 3. exists
             return JSONUtil.toBean(json, type);
         }
-        // 判断命中的是否是空值
+        // see whether json data (cache from redis) is null
         if (json != null) {
-            // 返回一个错误信息
             return null;
         }
 
-        // 4.不存在，根据id查询数据库
+        // 4. cache doesn't exist, search database with id
         R r = dbFallback.apply(id);
-        // 5.不存在，返回错误
+        // 5. doesn't exist
         if (r == null) {
-            // 将空值写入redis
+            // write null into redis
             stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
-            // 返回错误信息
             return null;
         }
-        // 6.存在，写入redis
+        // 6. user exists, write into redis
         this.set(key, r, time, unit);
         return r;
     }
 
+//    solve Cache Breakdown problem with logical expire
     public <R, ID> R queryWithLogicalExpire(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit) {
         String key = keyPrefix + id;
-        // 1.从redis查询商铺缓存
+        // 1. search shop info from redis
         String json = stringRedisTemplate.opsForValue().get(key);
-        // 2.判断是否存在
+        // 2. see whether shop cache exists
         if (StrUtil.isBlank(json)) {
-            // 3.存在，直接返回
+            // 3. cache is null, return null
+//            in cache breakdown situation, the cache is about hot data, and with logical expire, the cache
+//            won't expire, so all in all such cache is always present.
             return null;
         }
-        // 4.命中，需要先把json反序列化为对象
+        // 4. there exists such json data, unserialize json into object
         RedisData redisData = JSONUtil.toBean(json, RedisData.class);
         R r = JSONUtil.toBean((JSONObject) redisData.getData(), type);
         LocalDateTime expireTime = redisData.getExpireTime();
-        // 5.判断是否过期
+        // 5. check whether the data expired
         if(expireTime.isAfter(LocalDateTime.now())) {
-            // 5.1.未过期，直接返回店铺信息
+            // 5.1 haven't expire, return shop info
             return r;
         }
-        // 5.2.已过期，需要缓存重建
-        // 6.缓存重建
-        // 6.1.获取互斥锁
+        // 5.2 expired, cache restoration
+        // 6.1 get mutex
         String lockKey = LOCK_SHOP_KEY + id;
         boolean isLock = tryLock(lockKey);
-        // 6.2.判断是否获取锁成功
+        // 6.2 check whether get mutex successfully
         if (isLock){
-            // 6.3.成功，开启独立线程，实现缓存重建
+//            6.3 create an independent thread to perform cache restoration
             CACHE_REBUILD_EXECUTOR.submit(() -> {
                 try {
-                    // 查询数据库
+                    // search from the database
                     R newR = dbFallback.apply(id);
-                    // 重建缓存
+                    // write into redis
                     this.setWithLogicalExpire(key, newR, time, unit);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }finally {
-                    // 释放锁
                     unlock(lockKey);
                 }
             });
         }
-        // 6.4.返回过期的商铺信息
+        // 6.4 return expired shop info
         return r;
     }
 
+//    solve Cache Breakdown problem with mutex
     public <R, ID> R queryWithMutex(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit) {
         String key = keyPrefix + id;
-        // 1.从redis查询商铺缓存
         String shopJson = stringRedisTemplate.opsForValue().get(key);
-        // 2.判断是否存在
         if (StrUtil.isNotBlank(shopJson)) {
-            // 3.存在，直接返回
             return JSONUtil.toBean(shopJson, type);
         }
-        // 判断命中的是否是空值
         if (shopJson != null) {
-            // 返回一个错误信息
             return null;
         }
 
-        // 4.实现缓存重建
-        // 4.1.获取互斥锁
+        // 4.1 try to get mutex
         String lockKey = LOCK_SHOP_KEY + id;
         R r = null;
         try {
             boolean isLock = tryLock(lockKey);
-            // 4.2.判断是否获取成功
+            // 4.2 see if successfully get the mutex
             if (!isLock) {
-                // 4.3.获取锁失败，休眠并重试
+                // 4.3 fail, sleep and then try again
                 Thread.sleep(50);
                 return queryWithMutex(keyPrefix, id, type, dbFallback, time, unit);
             }
-            // 4.4.获取锁成功，根据id查询数据库
+            // 4.4 succeed, try to rebuild cache from the database
             r = dbFallback.apply(id);
-            // 5.不存在，返回错误
+            // 5. data not exist in database
             if (r == null) {
-                // 将空值写入redis
+                // write null into redis
                 stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
-                // 返回错误信息
                 return null;
             }
-            // 6.存在，写入redis
+            // 6. data exists in database, write into redis
             this.set(key, r, time, unit);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }finally {
-            // 7.释放锁
+            // 7. unlock key
             unlock(lockKey);
         }
-        // 8.返回
+        // 8. return
         return r;
     }
 
+//    try to get the lock
     private boolean tryLock(String key) {
         Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", 10, TimeUnit.SECONDS);
         return BooleanUtil.isTrue(flag);

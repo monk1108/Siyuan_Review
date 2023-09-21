@@ -11,12 +11,11 @@ public class LoginInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         // 1. check if the request should be intercepted (whether there's user in ThreadLocal)
         if (UserHolder.getUser() == null) {
-            // 没有，需要拦截，设置状态码
+            // no user in threadlocal
             response.setStatus(401);
-            // 拦截
             return false;
         }
-        // 有用户，则放行
+        // user exists, let go
         return true;
     }
 }
