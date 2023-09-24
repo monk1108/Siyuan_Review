@@ -32,8 +32,8 @@ import java.util.concurrent.Executors;
  * 服务实现类
  * </p>
  *
- * @author 虎哥
- * @since 2021-12-22
+ * @author Yinuo
+ * @since 2023.9.24
  */
 @Slf4j
 @Service
@@ -239,22 +239,19 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }*/
     /*@Override
     public Result seckillVoucher(Long voucherId) {
-        // 1.查询优惠券
+        // 1. search voucher
         SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
-        // 2.判断秒杀是否开始
+        // 2. check whether seckill has started yet
         if (voucher.getBeginTime().isAfter(LocalDateTime.now())) {
-            // 尚未开始
             return Result.fail("秒杀尚未开始！");
         }
-        // 3.判断秒杀是否已经结束
+        // 3. check whether seckill has ended
         if (voucher.getEndTime().isBefore(LocalDateTime.now())) {
-            // 尚未开始
             return Result.fail("秒杀已经结束！");
         }
-        // 4.判断库存是否充足
+        // 4. check whether there's enough voucher
         if (voucher.getStock() < 1) {
-            // 库存不足
-            return Result.fail("库存不足！");
+            return Result.fail("Voucher shortage！");
         }
 
         return createVoucherOrder(voucherId);
@@ -264,53 +261,48 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Transactional
     public Result createVoucherOrder(Long voucherId) {
-        // 5.一人一单
+        // 5. one order per person
         Long userId = UserHolder.getUser().getId();
 
-        // 创建锁对象
+        // create lock
         RLock redisLock = redissonClient.getLock("lock:order:" + userId);
-        // 尝试获取锁
+        // try to get lock
         boolean isLock = redisLock.tryLock();
-        // 判断
         if(!isLock){
-            // 获取锁失败，直接返回失败或者重试
+            // fail to fetch lock, return failure or retry
             return Result.fail("不允许重复下单！");
         }
 
         try {
-            // 5.1.查询订单
+            // 5.1 search order
             int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
-            // 5.2.判断是否存在
+            // 5.2 check whether order exists (whether the person has bought the voucher before)
             if (count > 0) {
-                // 用户已经购买过了
-                return Result.fail("用户已经购买过一次！");
+                // bought before
+                return Result.fail("The user has bought the voucher previously!");
             }
 
-            // 6.扣减库存
+            // 6. reduce inventory
             boolean success = seckillVoucherService.update()
                     .setSql("stock = stock - 1") // set stock = stock - 1
                     .eq("voucher_id", voucherId).gt("stock", 0) // where id = ? and stock > 0
                     .update();
             if (!success) {
-                // 扣减失败
-                return Result.fail("库存不足！");
+                // fail to reduce inventory
+                return Result.fail("Voucher inventory shortage！");
             }
 
-            // 7.创建订单
+            // 7. create voucher order
             VoucherOrder voucherOrder = new VoucherOrder();
-            // 7.1.订单id
             long orderId = redisIdWorker.nextId("order");
             voucherOrder.setId(orderId);
-            // 7.2.用户id
             voucherOrder.setUserId(userId);
-            // 7.3.代金券id
             voucherOrder.setVoucherId(voucherId);
             save(voucherOrder);
 
-            // 7.返回订单id
             return Result.ok(orderId);
         } finally {
-            // 释放锁
+            // release lock
             redisLock.unlock();
         }
 
@@ -320,7 +312,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         // 5.一人一单
         Long userId = UserHolder.getUser().getId();
 
-        // 创建锁对象
+        // 创建锁对象 (add a lock on userId)
         SimpleRedisLock redisLock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
         // 尝试获取锁
         boolean isLock = redisLock.tryLock(1200);

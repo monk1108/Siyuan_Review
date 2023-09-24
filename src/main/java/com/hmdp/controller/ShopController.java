@@ -16,7 +16,7 @@ import javax.annotation.Resource;
  * 前端控制器
  * </p>
  *
- * @author 虎哥
+ * @author Yinuo
  */
 @RestController
 @RequestMapping("/shop")
@@ -72,6 +72,8 @@ public class ShopController {
             @RequestParam(value = "x", required = false) Double x,
             @RequestParam(value = "y", required = false) Double y
     ) {
+        x = null;
+        y = null;
        return shopService.queryShopByType(typeId, current, x, y);
     }
 

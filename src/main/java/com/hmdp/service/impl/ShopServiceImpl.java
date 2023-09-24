@@ -29,7 +29,7 @@ import static com.hmdp.utils.RedisConstants.*;
  *  服务实现类
  * </p>
  *
- * @author 虎哥
+ * @author Yinuo
  * @since 2021-12-22
  */
 @Service
@@ -44,17 +44,17 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryById(Long id) {
-//        // cache passthrough unsolved
-//        Shop shop = cacheClient
-//                .queryWithPassThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        // cache passthrough unsolved
+        Shop shop = cacheClient
+                .queryWithPassThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
 ////         solving cache breakdown problem using mutex（互斥锁）
 //         Shop shop = cacheClient
 //                 .queryWithMutex(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
-        // sole cache breakdown problem using logical expire
-         Shop shop = cacheClient
-                 .queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, 20L, TimeUnit.SECONDS);
+//        // sole cache breakdown problem using logical expire
+//         Shop shop = cacheClient
+//                 .queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, 20L, TimeUnit.SECONDS);
 
         if (shop == null) {
             return Result.fail("店铺不存在！");

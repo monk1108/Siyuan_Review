@@ -10,11 +10,11 @@ import java.time.format.DateTimeFormatter;
 @Component
 public class RedisIdWorker {
     /**
-     * 开始时间戳
+     * beginning timestamp
      */
     private static final long BEGIN_TIMESTAMP = 1640995200L;
     /**
-     * 序列号的位数
+     * Number of digits in the serial number
      */
     private static final int COUNT_BITS = 32;
 
@@ -31,12 +31,12 @@ public class RedisIdWorker {
         long timestamp = nowSecond - BEGIN_TIMESTAMP;
 
         // 2. generate serial number
-        // 2.1.获取当前日期，精确到天
+        // 2.1 get current time
         String date = now.format(DateTimeFormatter.ofPattern("yyyy:MM:dd"));
-        // 2.2.自增长
+        // 2.2 auto increment
         long count = stringRedisTemplate.opsForValue().increment("icr:" + keyPrefix + ":" + date);
 
-        // 3.拼接并返回
+        // 3. concatenate
         return timestamp << COUNT_BITS | count;
     }
 }
