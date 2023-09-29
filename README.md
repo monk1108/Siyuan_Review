@@ -9,11 +9,10 @@ Integrated Lua scripts with message queues to achieve asynchronous flash sale pr
 scenarios.
 
 ## Demonstration:
-![1](https://github.com/monk1108/Siyuan_Review/assets/61319274/0d68c42d-6b3d-46d9-885b-2705092ce05c)
+![1](https://github.com/monk1108/Siyuan_Review/assets/61319274/52aa3561-054a-4017-83e9-de7988fa38ff)
 
 **Pic 1. User login and user info**
 
-
-![2](https://github.com/monk1108/Siyuan_Review/assets/61319274/38aa715f-7f78-477c-9b13-f3f057319048)
+![2](https://github.com/monk1108/Siyuan_Review/assets/61319274/44eb443b-5845-445e-8a38-cb1d44eee090)
 
 **Pic 2. APP home page, featured merchants and User evaluation of store visit.**
